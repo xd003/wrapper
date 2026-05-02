@@ -7,31 +7,52 @@ ARG NDK_VERSION=23
 
 SHELL ["/bin/bash", "-c"]
 
-RUN \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+WORKDIR /app
+
+# Skip SDK download if a prebuilt wrapper binary is provided
+COPY ./*wrapper ./
+RUN if [[ -f ./wrapper ]]; then \
+        touch /use_prebuild; \
+    fi
+
+RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
     --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    unzip \
-    git \
-    lsb-release \
-    gnupg \
-    aria2 \
-    gcc-aarch64-linux-gnu
+    if [[ ! -f /use_prebuild ]]; then \
+        apt-get update; \
+        apt-get install -y \
+            build-essential \
+            cmake \
+            unzip \
+            git \
+            lsb-release \
+            gnupg \
+            gcc-aarch64-linux-gnu \
+            aria2; \
+    fi
+
+RUN if [[ ! -f /use_prebuild ]]; then \
+      bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"; \
+    fi
+
+RUN if [[ ! -f /use_prebuild ]]; then \
+        aria2c -o android-ndk-r${NDK_VERSION}b-linux.zip https://dl.google.com/android/repository/android-ndk-r${NDK_VERSION}b-linux.zip; \
+        unzip -q -d /app android-ndk-r${NDK_VERSION}b-linux.zip; \
+        rm android-ndk-r${NDK_VERSION}b-linux.zip; \
+    fi
 
 WORKDIR /app
-RUN bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
-RUN aria2c -o android-ndk-r${NDK_VERSION}b-linux.zip https://dl.google.com/android/repository/android-ndk-r${NDK_VERSION}b-linux.zip
-RUN unzip -q -d ~ android-ndk-r${NDK_VERSION}b-linux.zip
-RUN rm android-ndk-r${NDK_VERSION}b-linux.zip
 COPY ./ ./
-
-WORKDIR /app
-RUN mkdir build
-WORKDIR /app/build
-RUN cmake -DTARGET_ARCH=${TARGET_ARCH} ..
-RUN make -j$(nproc)
+RUN if [[ ! -f /use_prebuild ]]; then \
+        mkdir -p build; \
+        cmake -S /app -B /app/build -DTARGET_ARCH=${TARGET_ARCH}; \
+        cmake --build /app/build -j$(nproc); \
+    elif [[ -f wrapper ]]; then \
+        chmod +x /app/wrapper; \
+    else \
+        echo "ERROR: Neither CMakeLists.txt nor prebuilt /app/wrapper found in build context." >&2 && \
+        ls -la /app >&2 && \
+        exit 1; \
+    fi
 
 FROM --platform=${RUNTIME_PLATFORM} debian:13.2
 
