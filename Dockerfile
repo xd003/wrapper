@@ -56,6 +56,9 @@ RUN if [[ ! -f /use_prebuild ]]; then \
 
 FROM --platform=${RUNTIME_PLATFORM} debian:13.2
 
+LABEL org.opencontainers.image.source="https://github.com/xd003/wrapper"
+LABEL org.opencontainers.image.description="Apple Music decryption wrapper with multi-account / multi-region support"
+
 WORKDIR /app
 COPY --from=build /app/wrapper /app/wrapper
 COPY --from=build /app/rootfs /app/rootfs
