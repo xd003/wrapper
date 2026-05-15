@@ -8,6 +8,18 @@ services:
         NDK_VERSION: 23
     volumes:
       - ./rootfs/data:/app/rootfs/data
+    # Single-account (backward compat):
+    #   set USERNAME and PASSWORD below.
+    # Multi-account (one entry per region):
+    #   set ACCOUNTS="user1:pw1,user2:pw2,user3:pw3"
+    #   account N is exposed on ports 10020+N (decrypt), 20020+N (m3u8), 30020+N (account)
     environment:
-      USERNAME: ${USERNAME}
-      PASSWORD: ${PASSWORD}
+      USERNAME: ${USERNAME:-}
+      PASSWORD: ${PASSWORD:-}
+      ACCOUNTS: ${ACCOUNTS:-}
+    # Publish a contiguous port range covering as many accounts as you need.
+    # The example below covers up to 3 accounts (indices 0-2).
+    ports:
+      - "10020-10022:10020-10022"
+      - "20020-20022:20020-20022"
+      - "30020-30022:30020-30022"
